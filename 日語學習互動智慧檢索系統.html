@@ -391,7 +391,19 @@
     .badge-level-biz { background-color: #f5f3ff; color: #6d28d9; border: 1px solid #ddd6fe; }
 
     .badge-tab { background-color: var(--bg-main); color: var(--text-muted); border: 1px solid var(--border-color); }
-    .badge-cat { background-color: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+    .badge-cat {
+      background-color: #fffbeb;
+      color: #b45309;
+      border: 1px solid #fde68a;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .badge-cat:hover {
+      background-color: #fef3c7;
+      border-color: #f59e0b;
+      transform: translateY(-1px);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
 
     .card-id {
       font-size: 0.75rem;
@@ -1739,6 +1751,7 @@
         majorBtn.classList.add("active");
         currentFuncMajor = majorBtn.getAttribute("data-fmajor");
         currentFuncCategory = "all";
+        currentSkill = "all";
         skillFilter.value = "all";
         renderFuncCategoryChips();
         renderCards(true);
@@ -1747,6 +1760,7 @@
       const catBtn = e.target.closest("[data-cat]");
       if (catBtn) {
         currentFuncCategory = catBtn.getAttribute("data-cat");
+        currentSkill = currentFuncCategory;
         skillFilter.value = currentFuncCategory;
         renderFuncCategoryChips();
         renderCards(true);
@@ -1758,6 +1772,7 @@
       const chapBtn = e.target.closest("[data-bchap]");
       if (chapBtn) {
         currentBusChapter = chapBtn.getAttribute("data-bchap");
+        currentSkill = currentBusChapter;
         skillFilter.value = currentBusChapter;
         renderBusChapterChips();
         renderCards(true);
@@ -1765,24 +1780,55 @@
       const majorBtn = e.target.closest("[data-bchapter]");
       if (majorBtn) {
         currentBusChapter = "all";
+        currentSkill = "all";
         skillFilter.value = "all";
         renderBusChapterChips();
         renderCards(true);
       }
     });
 
+    function switchToFunctionCategory(catName, majorCode) {
+      currentTab = "function";
+      document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.getAttribute("data-tab") === "function"));
+      
+      funcCategoryNav.style.display = "block";
+      busCategoryNav.style.display = "none";
+
+      if (majorCode) {
+        currentFuncMajor = majorCode;
+        funcCategoryNav.querySelectorAll("[data-fmajor]").forEach(b => b.classList.toggle("active", b.getAttribute("data-fmajor") === majorCode));
+      } else {
+        const catObj = FUNC_CATEGORIES.find(c => c.name === catName);
+        if (catObj) {
+          currentFuncMajor = catObj.major_code;
+          funcCategoryNav.querySelectorAll("[data-fmajor]").forEach(b => b.classList.toggle("active", b.getAttribute("data-fmajor") === catObj.major_code));
+        }
+      }
+
+      currentFuncCategory = catName;
+      currentSkill = catName;
+
+      updateCategoryDropdown();
+      skillFilter.value = catName;
+      renderFuncCategoryChips();
+      renderCards(true);
+
+      showToast(`🎯 已篩選機能分類：${catName}`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+
     // Dynamic Skill/Category Dropdown update on tab switch
     function updateCategoryDropdown() {
       if (currentTab === "function") {
-        let optHtml = `<option value="all">所有機能分類 (All 40 Categories)</option>`;
+        let optHtml = `<option value="all">🌟 所有機能分類 (全部 40 大類・507條)</option>`;
         
-        optHtml += `<optgroup label="文中で助詞の働きをするもの（句中助詞篇・20大類）">`;
+        optHtml += `<optgroup label="🔹 文中で助詞の働きをするもの（句中助詞篇・20大類・292條）">`;
         FUNC_CATEGORIES.filter(c => c.major_code === "particle").forEach(c => {
           optHtml += `<option value="${c.name}">🔹 ${c.name}（${c.zh}・${c.count}條）</option>`;
         });
         optHtml += `</optgroup>`;
 
-        optHtml += `<optgroup label="文末で助動詞の働きをするもの（句尾助動詞篇・20大類）">`;
+        optHtml += `<optgroup label="🔸 文末で助動詞の働きをするもの（句尾助動詞篇・20大類・215條）">`;
         FUNC_CATEGORIES.filter(c => c.major_code === "auxiliary").forEach(c => {
           optHtml += `<option value="${c.name}">🔸 ${c.name}（${c.zh}・${c.count}條）</option>`;
         });
@@ -1790,42 +1836,55 @@
 
         skillFilter.innerHTML = optHtml;
       } else if (currentTab === "business") {
-        let optHtml = `<option value="all">所有商務章節 (All 14 Chapters)</option>`;
-        optHtml += `<optgroup label="商業實務全14章">`;
+        let optHtml = `<option value="all">🌟 所有商務章節 (全部 14 章節・116條)</option>`;
+        optHtml += `<optgroup label="💼 商業實務全14章">`;
         BUS_CHAPTERS.forEach(c => {
-          optHtml += `<option value="${c.title}">💼 ${c.title}（${c.zh}・${c.count}條）</option>`;
+          optHtml += `<option value="${c.title}">💼 ${c.title}（${c.zh || ''}・${c.count}條）</option>`;
         });
         optHtml += `</optgroup>`;
         skillFilter.innerHTML = optHtml;
       } else {
-        skillFilter.innerHTML = `
-          <option value="all">所有技能與分類 (All Categories)</option>
-          <option value="文法句型">文法句型 (Grammar Patterns)</option>
-          <option value="難點辨析">難點辨析 (Grammar Nuances)</option>
-          <option value="句中助詞">句中助詞 (Particle Functions)</option>
-          <option value="句尾語氣">句尾語氣 (Modality & Endings)</option>
-          <option value="生活會話">生活會話 (Daily Conversation)</option>
-          <option value="商務敬語">商務敬語 (Business Keigo)</option>
-          <option value="時間・順序">時間・順序 (Time & Order)</option>
-          <option value="原因・理由">原因・理由 (Cause & Reason)</option>
-          <option value="逆接・讓步">逆接・讓步 (Contrast & Concession)</option>
-          <option value="條件・假定">條件・假定 (Condition & Hypothesis)</option>
-          <option value="樣態・推量">樣態・推量 (Appearance & Conjecture)</option>
-          <option value="傳聞">傳聞 (Hearsay)</option>
-          <option value="授受・使役・被動">授受・使役・被動 (Voice & Giving)</option>
-          <option value="願望・意志">願望・意志 (Desire & Volition)</option>
-          <option value="提示・限定">提示・限定 (Topic & Limitation)</option>
-          <option value="評價・態度">評價・態度 (Evaluation & Attitude)</option>
-          <option value="狀態・進行">狀態・進行 (Aspect & State)</option>
+        let optHtml = `
+          <option value="all">🌟 所有技能與分類 (All Categories)</option>
+          <optgroup label="📖 表現文型核心維度">
+            <option value="文法句型">文法句型 (Grammar Patterns)</option>
+            <option value="難點辨析">難點辨析 (Grammar Nuances)</option>
+            <option value="時間・順序">時間・順序 (Time & Order)</option>
+            <option value="原因・理由">原因・理由 (Cause & Reason)</option>
+            <option value="逆接・讓步">逆接・讓步 (Contrast & Concession)</option>
+            <option value="條件・假定">條件・假定 (Condition & Hypothesis)</option>
+            <option value="樣態・推量">樣態・推量 (Appearance & Conjecture)</option>
+            <option value="授受・使役・被動">授受・使役・被動 (Voice & Giving)</option>
+            <option value="願望・意志">願望・意志 (Desire & Volition)</option>
+            <option value="提示・限定">提示・限定 (Topic & Limitation)</option>
+            <option value="評價・態度">評價・態度 (Evaluation & Attitude)</option>
+            <option value="狀態・進行">狀態・進行 (Aspect & State)</option>
+          </optgroup>
+          <optgroup label="🔹 機能別文型（句中助詞篇・20大類）">
         `;
+        FUNC_CATEGORIES.filter(c => c.major_code === "particle").forEach(c => {
+          optHtml += `<option value="${c.name}">🔹 ${c.name}（${c.zh}）</option>`;
+        });
+        optHtml += `</optgroup><optgroup label="🔸 機能別文型（句尾助動詞篇・20大類）">`;
+        FUNC_CATEGORIES.filter(c => c.major_code === "auxiliary").forEach(c => {
+          optHtml += `<option value="${c.name}">🔸 ${c.name}（${c.zh}）</option>`;
+        });
+        optHtml += `</optgroup><optgroup label="💼 商務實務分類">`;
+        BUS_CHAPTERS.forEach(c => {
+          optHtml += `<option value="${c.title}">💼 ${c.title}</option>`;
+        });
+        optHtml += `</optgroup>`;
+        skillFilter.innerHTML = optHtml;
       }
-      skillFilter.value = "all";
-      currentSkill = "all";
+      skillFilter.value = currentSkill;
     }
 
 
     // Initialize
     updateBookmarkCount();
+    updateCategoryDropdown();
+    renderFuncCategoryChips();
+    renderBusChapterChips();
     renderCards();
 
     // Event Listeners: Search
@@ -1851,7 +1910,26 @@
       btn.classList.add("active");
       currentTab = btn.getAttribute("data-tab");
 
-      // Auto-reset filters when switching tabs if current filter would result in 0 items
+      // Toggle category navigation panels
+      if (currentTab === "function") {
+        funcCategoryNav.style.display = "block";
+        busCategoryNav.style.display = "none";
+        renderFuncCategoryChips();
+      } else if (currentTab === "business") {
+        funcCategoryNav.style.display = "none";
+        busCategoryNav.style.display = "block";
+        renderBusChapterChips();
+      } else {
+        funcCategoryNav.style.display = "none";
+        busCategoryNav.style.display = "none";
+      }
+
+      currentSkill = "all";
+      currentFuncCategory = "all";
+      currentBusChapter = "all";
+      updateCategoryDropdown();
+
+      // Auto-reset level if current filter would result in 0 items
       if (currentTab !== "all") {
         const testItems = DATABASE.filter(x => x.tab === currentTab);
         const matchLevel = testItems.some(x => currentLevel === "all" || x.level === currentLevel);
@@ -1859,14 +1937,9 @@
           currentLevel = "all";
           levelFilter.value = "all";
         }
-        const matchSkill = testItems.some(x => currentSkill === "all" || x.skill === currentSkill || (x.function_cat || "").includes(currentSkill));
-        if (!matchSkill) {
-          currentSkill = "all";
-          skillFilter.value = "all";
-        }
       }
 
-      renderCards();
+      renderCards(true);
     });
 
     // Event Listeners: Filters
@@ -1879,10 +1952,22 @@
       currentSkill = e.target.value;
       if (currentTab === "function") {
         currentFuncCategory = currentSkill;
+        if (currentFuncCategory !== "all") {
+          const catObj = FUNC_CATEGORIES.find(c => c.name === currentFuncCategory);
+          if (catObj && catObj.major_code !== currentFuncMajor && currentFuncMajor !== "all") {
+            currentFuncMajor = "all";
+            funcCategoryNav.querySelectorAll("[data-fmajor]").forEach(b => b.classList.toggle("active", b.getAttribute("data-fmajor") === "all"));
+          }
+        }
         renderFuncCategoryChips();
       } else if (currentTab === "business") {
         currentBusChapter = currentSkill;
         renderBusChapterChips();
+      } else if (currentTab === "all") {
+        const catObj = FUNC_CATEGORIES.find(c => c.name === currentSkill);
+        if (catObj) {
+          currentFuncCategory = currentSkill;
+        }
       }
       renderCards(true);
     });
@@ -1987,13 +2072,15 @@
         // Level Filter
         if (currentLevel !== "all" && item.level !== currentLevel) return false;
 
-        // Skill / Category Filter
-        if (currentSkill !== "all") {
-          const matchSkill = item.skill === currentSkill ||
-                             (item.function_cat || "").includes(currentSkill) ||
-                             (item.category_name && item.category_name === currentSkill) ||
-                             (item.chapter_title && item.chapter_title === currentSkill);
-          if (!matchSkill) return false;
+        // Skill / Category Filter (for tabs other than specialized function / business)
+        if (currentTab !== "function" && currentTab !== "business") {
+          if (currentSkill !== "all") {
+            const matchSkill = item.skill === currentSkill ||
+                               (item.function_cat || "").includes(currentSkill) ||
+                               (item.category_name && item.category_name === currentSkill) ||
+                               (item.chapter_title && item.chapter_title === currentSkill);
+            if (!matchSkill) return false;
+          }
         }
 
         // Bookmarks Only
@@ -2197,6 +2284,18 @@
 
     // Robust Event Delegation on itemsGrid (Immune to ID escaping issues)
     itemsGrid.addEventListener("click", (e) => {
+      const badgeCat = e.target.closest(".badge-cat");
+      if (badgeCat) {
+        const card = badgeCat.closest(".card");
+        if (card) {
+          const id = card.getAttribute("data-id");
+          const item = DATABASE.find(x => x.id === id);
+          if (item && item.tab === "function" && item.category_name) {
+            switchToFunctionCategory(item.category_name, item.major_code);
+            return;
+          }
+        }
+      }
       const target = e.target.closest("[data-action]");
       if (!target) return;
       const action = target.getAttribute("data-action");
@@ -2226,11 +2325,17 @@
       currentSearch = "";
       activeQuickChip = "all";
       showBookmarksOnly = false;
+      currentFuncMajor = "all";
+      currentFuncCategory = "all";
+      currentBusChapter = "all";
+
+      funcCategoryNav.style.display = "none";
+      busCategoryNav.style.display = "none";
+      funcCategoryNav.querySelectorAll("[data-fmajor]").forEach(b => b.classList.toggle("active", b.getAttribute("data-fmajor") === "all"));
 
       searchInput.value = "";
       clearSearchBtn.style.display = "none";
       levelFilter.value = "all";
-      skillFilter.value = "all";
       toggleBookmarkOnlyBtn.classList.remove("active");
 
       document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
@@ -2239,6 +2344,7 @@
       document.querySelectorAll(".chip-btn").forEach(c => c.classList.remove("active"));
       document.querySelector('.chip-btn[data-chip="all"]').classList.add("active");
 
+      updateCategoryDropdown();
       renderCards();
       showToast("已重置所有篩選條件，回到全部文型！");
     }
