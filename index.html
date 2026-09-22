@@ -1251,12 +1251,12 @@
           <button id="openQuizBtn" class="btn btn-quiz" title="進入JLPT文型智慧測驗">🎯 隨堂測驗</button>
           <button id="toggleFuriganaBtn" class="btn btn-header" title="隱藏假名可供自我測驗">🔤 假名: 顯示中</button>
           <button id="toggleBookmarkOnlyBtn" class="btn btn-header" title="查看已收藏項目">⭐ 我的收藏 (<span id="bookmarkCount">0</span>)</button>
-          <select id="voiceSelect" class="btn btn-header" title="切換日語發音引擎 (預設微軟真人語音)">
-            <option value="nanami">🌸 微軟 Nanami (七海・真人女聲)</option>
-            <option value="keita">👦 微軟 Keita (圭太・真人男聲)</option>
-            <option value="google-hd">☁️ Google 真人語音 (Cloud HD)</option>
-            <option value="system">🌐 系統預設語音 (System)</option>
-          </select>
+          <span class="btn btn-header" style="cursor:default; background:rgba(56, 189, 248, 0.18); border-color:rgba(56, 189, 248, 0.4); color:#e0f2fe; font-weight:700;" title="固定指定微軟真人男聲 (けいた・Keita Online Natural)">👦 語音：微軟けいた</span>
+          <div class="rate-slider-wrap" style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.12); padding:0.35rem 0.75rem; border-radius:0.5rem; border:1px solid rgba(255,255,255,0.2);" title="無段調整朗讀語速 (0.5x ~ 2.0x)">
+            <span style="font-size:0.8rem; color:#cbd5e1; font-weight:600;">⚡ 語速</span>
+            <input type="range" id="globalRateSlider" min="0.5" max="2.0" step="0.05" value="1.0" style="width:75px; accent-color:#38bdf8; cursor:pointer;">
+            <span id="globalRateLabel" style="font-size:0.8rem; color:#f8fafc; font-weight:700; min-width:34px;">1.00x</span>
+          </div>
           <button id="toggleThemeBtn" class="btn btn-header" title="切換深色/淺色模式">🌗 主題模式</button>
         </div>
       </div>
@@ -1398,14 +1398,12 @@
           <button id="mStateMastered" class="btn-mastery" data-mstate="mastered">🟢 已掌握</button>
         </div>
         <div class="modal-actions-right">
-          <select id="modalVoiceSelect" class="btn-action" style="padding: 0.35rem 0.55rem; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-weight: 600; cursor: pointer;" title="選擇朗讀語音 (預設微軟真人語音)">
-            <option value="nanami">🌸 微軟 Nanami (女聲)</option>
-            <option value="keita">👦 微軟 Keita (男聲)</option>
-            <option value="google-hd">☁️ Google 真人 (HD)</option>
-            <option value="system">🌐 系統預設</option>
-          </select>
-          <button id="modalTtsBtn" class="btn btn-action" title="以正常語速朗讀">🔊 1.0x 朗讀</button>
-          <button id="modalSlowTtsBtn" class="btn btn-action" title="以 0.8x 慢速精聽朗讀">🐢 0.8x 慢速</button>
+          <div class="rate-slider-wrap" style="display:inline-flex; align-items:center; gap:6px; background:var(--bg-card); padding:0.3rem 0.6rem; border-radius:6px; border:1px solid var(--border-color);" title="無段調整朗讀語速 (0.5x ~ 2.0x)">
+            <span style="font-size:0.78rem; color:var(--text-muted); font-weight:600;">⚡ 語速</span>
+            <input type="range" id="modalRateSlider" min="0.5" max="2.0" step="0.05" value="1.0" style="width:70px; accent-color:var(--primary); cursor:pointer;">
+            <span id="modalRateLabel" style="font-size:0.78rem; color:var(--primary); font-weight:700; min-width:34px;">1.00x</span>
+          </div>
+          <button id="modalTtsBtn" class="btn btn-action" title="以微軟真人【けいた】朗讀本條文型">🔊 朗讀</button>
           <button id="modalBookmarkBtn" class="btn btn-action">⭐ 收藏</button>
           <button id="modalCopyBtn" class="btn btn-action">📋 複製</button>
         </div>
@@ -2401,10 +2399,9 @@
     }
 
     // ==========================================================================
-    // 語音朗讀核心引擎 (TTS Voice Engine - 優先選用微軟真人語音 Nanami / Keita)
+    // 語音朗讀核心引擎 (TTS Engine - 專用微軟真人男聲【けいた】 & 無段調速)
     // ==========================================================================
     let availableVoices = [];
-    let currentAudioObj = null;
 
     function initVoiceEngine() {
       if ('speechSynthesis' in window) {
@@ -2416,27 +2413,28 @@
     }
     initVoiceEngine();
 
-    function getSelectedVoiceChoice() {
-      return localStorage.getItem('jp_tts_voice') || 'nanami';
+    function getGlobalRate() {
+      const saved = parseFloat(localStorage.getItem('jp_tts_rate'));
+      return (!isNaN(saved) && saved >= 0.5 && saved <= 2.0) ? saved : 1.0;
     }
 
-    function setVoiceChoice(choice) {
-      localStorage.setItem('jp_tts_voice', choice);
-      const sel1 = document.getElementById('voiceSelect');
-      if (sel1 && sel1.value !== choice) sel1.value = choice;
-      const sel2 = document.getElementById('modalVoiceSelect');
-      if (sel2 && sel2.value !== choice) sel2.value = choice;
+    function setGlobalRate(newRate) {
+      const r = Math.min(2.0, Math.max(0.5, Math.round(newRate * 20) / 20));
+      localStorage.setItem('jp_tts_rate', r.toString());
+      
+      const gSlider = document.getElementById('globalRateSlider');
+      const gLabel = document.getElementById('globalRateLabel');
+      const mSlider = document.getElementById('modalRateSlider');
+      const mLabel = document.getElementById('modalRateLabel');
 
-      const titles = {
-        'nanami': '微軟 Nanami (七海・真人女聲)',
-        'keita': '微軟 Keita (圭太・真人男聲)',
-        'google-hd': 'Google 真人語音 (Cloud HD)',
-        'system': '系統預設語音'
-      };
-      showToast(`已切換發音引擎：${titles[choice] || choice}`);
+      const text = r.toFixed(2).replace(/\.?0+$/, '') + 'x';
+      if (gSlider) gSlider.value = r;
+      if (gLabel) gLabel.textContent = text;
+      if (mSlider) mSlider.value = r;
+      if (mLabel) mLabel.textContent = text;
     }
 
-    function findBestVoice(choice) {
+    function findKeitaVoice() {
       if (!availableVoices || availableVoices.length === 0) {
         if ('speechSynthesis' in window) {
           availableVoices = window.speechSynthesis.getVoices() || [];
@@ -2444,63 +2442,25 @@
       }
       if (!availableVoices || availableVoices.length === 0) return null;
 
+      // 1. 首選：微軟真人男聲 Keita (Microsoft Keita Online Natural)
+      let v = availableVoices.find(v => /Keita/i.test(v.name));
+      if (v) return v;
+
+      // 2. 次選：日語自然語音 (Natural / Online)
       const jaVoices = availableVoices.filter(v => 
         (v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP') || v.lang.includes('ja_JP') || v.lang.includes('ja-JP')))
       );
+      v = jaVoices.find(v => /Keita/i.test(v.name));
+      if (v) return v;
 
-      if (jaVoices.length === 0) {
-        const jaNamedVoices = availableVoices.filter(v => /Japanese|Japan|日本語/i.test(v.name));
-        if (jaNamedVoices.length > 0) jaVoices.push(...jaNamedVoices);
-      }
+      v = jaVoices.find(v => /Natural|Online/i.test(v.name));
+      if (v) return v;
 
-      if (choice === 'nanami') {
-        // 優先順序 1: 微軟七海真人語音 (Microsoft Nanami Online Natural)
-        let v = jaVoices.find(v => /Nanami/i.test(v.name));
-        if (v) return v;
-
-        // 優先順序 2: 其他微軟自然/神經網路女性日語 (Natural / Online / Neural)
-        v = jaVoices.find(v => /Microsoft/i.test(v.name) && /Natural|Online|Neural/i.test(v.name) && !/Keita|Naoki|Daichi|Ichiro/i.test(v.name));
-        if (v) return v;
-
-        // 優先順序 3: 任何微軟日語真人語音 (排除舊版 Desktop 機器音)
-        v = jaVoices.find(v => /Microsoft/i.test(v.name) && !/Desktop/i.test(v.name));
-        if (v) return v;
-
-        // 優先順序 4: 任何微軟語音
-        v = jaVoices.find(v => /Microsoft/i.test(v.name));
-        if (v) return v;
-
-        // 優先順序 5: 任何自然語音 (如 Google 日本語)
-        v = jaVoices.find(v => /Natural|Online|Neural|Google/i.test(v.name));
-        if (v) return v;
-
-        return jaVoices[0] || null;
-      }
-
-      if (choice === 'keita') {
-        // 優先順序 1: 微軟圭太真人語音 (Microsoft Keita Online Natural)
-        let v = jaVoices.find(v => /Keita/i.test(v.name));
-        if (v) return v;
-
-        // 優先順序 2: 其他微軟自然/神經網路男性日語 (Naoki, Daichi, Ichiro)
-        v = jaVoices.find(v => /Microsoft/i.test(v.name) && /Naoki|Daichi|Ichiro/i.test(v.name));
-        if (v) return v;
-
-        // 優先順序 3: 任何微軟日語語音
-        v = jaVoices.find(v => /Microsoft/i.test(v.name));
-        if (v) return v;
-
-        return jaVoices[0] || null;
-      }
-
-      if (choice === 'system') {
-        return jaVoices[0] || null;
-      }
-
+      // 3. 備選日語語音
       return jaVoices[0] || null;
     }
 
-    // Speech Synthesis with Clean Japanese Text (strips ruby/rt cleanly)
+    // Clean Japanese Text (strips ruby/rt cleanly)
     function cleanJapaneseTextForSpeech(htmlOrRuby) {
       if (!htmlOrRuby) return "";
       const temp = document.createElement("div");
@@ -2509,79 +2469,30 @@
       return temp.textContent.replace(/\s+/g, ' ').trim();
     }
 
-    function speakText(text, rate = 0.9) {
+    function speakText(text, explicitRate) {
       const plain = cleanJapaneseTextForSpeech(text);
       if (!plain) return;
 
-      // 停止先前正在發聲的朗讀或音檔
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-      if (currentAudioObj) {
-        try {
-          currentAudioObj.pause();
-          currentAudioObj.currentTime = 0;
-        } catch (e) {}
-        currentAudioObj = null;
-      }
-
-      const voiceChoice = getSelectedVoiceChoice();
-
-      // 方案 1: 若使用者指定 Google 真人高音質 (Cloud HD)
-      if (voiceChoice === 'google-hd') {
-        playGoogleCloudTts(plain, rate);
-        return;
-      }
-
-      // 方案 2: Web Speech Synthesis（優先匹配微軟 Nanami / Keita 真人語音）
-      if ('speechSynthesis' in window) {
-        const matchedVoice = findBestVoice(voiceChoice);
-        if (matchedVoice) {
-          const ut = new SpeechSynthesisUtterance(plain);
-          ut.voice = matchedVoice;
-          ut.lang = 'ja-JP';
-          ut.rate = typeof rate === 'number' ? rate : 0.9;
-
-          let friendlyName = matchedVoice.name
-            .replace(/Microsoft\s*/i, '微軟 ')
-            .replace(/\s*Online\s*\(Natural\)\s*-\s*Japanese\s*\(Japan\)/i, ' (自然真人)')
-            .replace(/\s*-\s*Japanese\s*\(Japan\)/i, '');
-
-          showToast(`🔊 正在以 ${friendlyName} 朗讀...`);
-          window.speechSynthesis.speak(ut);
-          return;
-        }
-      }
-
-      // 方案 3: 若瀏覽器無微軟語音且無可用語音，自動降級為 Google Cloud 真人發音
-      playGoogleCloudTts(plain, rate);
-    }
-
-    function playGoogleCloudTts(plain, rate = 0.9) {
-      try {
-        const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ja&q=${encodeURIComponent(plain.slice(0, 200))}`;
-        const audio = new Audio(audioUrl);
-        currentAudioObj = audio;
-        audio.playbackRate = typeof rate === 'number' ? rate : 0.9;
-        showToast("🔊 正在以 Google 真人語音朗讀...");
-        audio.play().catch(() => {
-          fallbackSpeechSynthesis(plain, rate);
-        });
-      } catch (e) {
-        fallbackSpeechSynthesis(plain, rate);
-      }
-    }
-
-    function fallbackSpeechSynthesis(plain, rate = 0.9) {
       if (!('speechSynthesis' in window)) {
         showToast("您的瀏覽器不支援語音朗讀功能");
         return;
       }
+
+      window.speechSynthesis.cancel();
+
+      const rate = typeof explicitRate === 'number' ? explicitRate : getGlobalRate();
+      const keitaVoice = findKeitaVoice();
+
       const ut = new SpeechSynthesisUtterance(plain);
+      if (keitaVoice) {
+        ut.voice = keitaVoice;
+      }
       ut.lang = 'ja-JP';
-      ut.rate = typeof rate === 'number' ? rate : 0.9;
+      ut.rate = rate;
+
+      const rateText = rate.toFixed(2).replace(/\.?0+$/, '') + 'x';
+      showToast(`🔊 正在以微軟真人【けいた】朗讀 (${rateText})...`);
       window.speechSynthesis.speak(ut);
-      showToast("🔊 正在朗讀日語...");
     }
 
     function speakFromCard(id) {
@@ -2934,34 +2845,28 @@
       }
     });
 
-    // Voice Engine Dropdown Listeners
-    const initialVoice = getSelectedVoiceChoice();
-    const voiceSelectEl = document.getElementById("voiceSelect");
-    const modalVoiceSelectEl = document.getElementById("modalVoiceSelect");
+    // Stepless Playback Rate Sliders init
+    const initialRate = getGlobalRate();
+    setGlobalRate(initialRate);
 
-    if (voiceSelectEl) {
-      voiceSelectEl.value = initialVoice;
-      voiceSelectEl.addEventListener("change", (e) => setVoiceChoice(e.target.value));
+    const gSlider = document.getElementById("globalRateSlider");
+    const mSlider = document.getElementById("modalRateSlider");
+
+    if (gSlider) {
+      gSlider.addEventListener("input", (e) => setGlobalRate(parseFloat(e.target.value)));
+      gSlider.addEventListener("change", (e) => setGlobalRate(parseFloat(e.target.value)));
     }
-    if (modalVoiceSelectEl) {
-      modalVoiceSelectEl.value = initialVoice;
-      modalVoiceSelectEl.addEventListener("change", (e) => setVoiceChoice(e.target.value));
+    if (mSlider) {
+      mSlider.addEventListener("input", (e) => setGlobalRate(parseFloat(e.target.value)));
+      mSlider.addEventListener("change", (e) => setGlobalRate(parseFloat(e.target.value)));
     }
 
-    // Slow TTS vs Normal TTS
+    // Modal TTS button
     document.getElementById("modalTtsBtn").addEventListener("click", () => {
       if (activeModalItem) {
         const text = (activeModalItem.examples && activeModalItem.examples.length) ? 
           activeModalItem.examples[0].jp_ruby : activeModalItem.title_plain;
-        speakText(text, 1.0);
-      }
-    });
-
-    document.getElementById("modalSlowTtsBtn").addEventListener("click", () => {
-      if (activeModalItem) {
-        const text = (activeModalItem.examples && activeModalItem.examples.length) ? 
-          activeModalItem.examples[0].jp_ruby : activeModalItem.title_plain;
-        speakText(text, 0.75);
+        speakText(text);
       }
     });
 

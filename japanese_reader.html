@@ -6017,26 +6017,16 @@ body.highlight-ojad .word-token[data-ojad-type="な形"] {
             u.lang = 'ja-JP';
             u.rate = 0.95;
             const voices = window.speechSynthesis.getVoices() || [];
-            const jaVoices = voices.filter(v => v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP')));
             
-            // 優先選用微軟 Nanami / 自然真人語音
-            let bestVoice = jaVoices.find(v => /Nanami/i.test(v.name)) ||
-                            jaVoices.find(v => /Microsoft/i.test(v.name) && /Natural|Online|Neural/i.test(v.name)) ||
-                            jaVoices.find(v => /Natural|Online|Neural/i.test(v.name)) ||
-                            jaVoices.find(v => /Microsoft/i.test(v.name) && !/Desktop/i.test(v.name)) ||
-                            jaVoices.find(v => /Keita/i.test(v.name)) ||
-                            jaVoices.find(v => /Microsoft/i.test(v.name)) ||
-                            jaVoices[0] ||
-                            voices.find(v => v.lang.startsWith('ja'));
+            // 專用微軟真人男聲【けいた / Keita】
+            let keitaVoice = voices.find(v => /Keita/i.test(v.name)) ||
+                             voices.find(v => (v.lang.startsWith('ja') || v.lang.includes('JP')) && /Natural|Online/i.test(v.name)) ||
+                             voices.find(v => v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP')));
 
-            if (bestVoice) {
-                u.voice = bestVoice;
-                let friendlyName = bestVoice.name
-                    .replace(/Microsoft\s*/i, '微軟 ')
-                    .replace(/\s*Online\s*\(Natural\)\s*-\s*Japanese\s*\(Japan\)/i, ' (自然真人)')
-                    .replace(/\s*-\s*Japanese\s*\(Japan\)/i, '');
-                showToast(`🔊 正在以 ${friendlyName} 朗讀...`);
+            if (keitaVoice) {
+                u.voice = keitaVoice;
             }
+            showToast('🔊 正在以微軟真人【けいた】朗讀...');
             window.speechSynthesis.speak(u);
         }
 
