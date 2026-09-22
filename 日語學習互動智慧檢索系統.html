@@ -126,6 +126,27 @@
       border-color: rgba(255, 255, 255, 0.2);
     }
 
+    select.btn-header {
+      appearance: auto;
+      -webkit-appearance: auto;
+      padding: 0.45rem 0.75rem;
+      border-radius: 0.5rem;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      outline: none;
+    }
+
+    select.btn-header option {
+      background-color: #1e293b;
+      color: #f8fafc;
+    }
+
+    body.dark-mode select.btn-header option {
+      background-color: #0f172a;
+      color: #f8fafc;
+    }
+
     .btn-header:hover {
       background-color: rgba(255, 255, 255, 0.22);
       border-color: rgba(255, 255, 255, 0.4);
@@ -1225,10 +1246,17 @@
           <p>整合《日本語表現文型辞典》(486條)、《機能別表現文型》(41條)、《初級文型の難所》(7條)、《初級会話》(10條)、《ビジネス会話》(14條)（全庫 1126 條深度詳解）</p>
         </div>
         <div class="quick-toggles">
+          <a href="reader.html" class="btn btn-primary" style="text-decoration:none;display:inline-flex;align-items:center;background:linear-gradient(135deg,#0284c7,#0369a1);color:#fff;font-weight:700;" title="開啟日文文章長文閱讀助手・助詞換句話說・OJAD用言活用與東京聲調全對照表">📖 長文閱讀 ✕ OJAD聲調</a>
           <button id="openFlashcardsBtn" class="btn btn-flashcard" title="開啟單字卡3D翻牌記憶複習">📇 翻牌複習</button>
           <button id="openQuizBtn" class="btn btn-quiz" title="進入JLPT文型智慧測驗">🎯 隨堂測驗</button>
           <button id="toggleFuriganaBtn" class="btn btn-header" title="隱藏假名可供自我測驗">🔤 假名: 顯示中</button>
           <button id="toggleBookmarkOnlyBtn" class="btn btn-header" title="查看已收藏項目">⭐ 我的收藏 (<span id="bookmarkCount">0</span>)</button>
+          <select id="voiceSelect" class="btn btn-header" title="切換日語發音引擎 (預設微軟真人語音)">
+            <option value="nanami">🌸 微軟 Nanami (七海・真人女聲)</option>
+            <option value="keita">👦 微軟 Keita (圭太・真人男聲)</option>
+            <option value="google-hd">☁️ Google 真人語音 (Cloud HD)</option>
+            <option value="system">🌐 系統預設語音 (System)</option>
+          </select>
           <button id="toggleThemeBtn" class="btn btn-header" title="切換深色/淺色模式">🌗 主題模式</button>
         </div>
       </div>
@@ -1370,6 +1398,12 @@
           <button id="mStateMastered" class="btn-mastery" data-mstate="mastered">🟢 已掌握</button>
         </div>
         <div class="modal-actions-right">
+          <select id="modalVoiceSelect" class="btn-action" style="padding: 0.35rem 0.55rem; font-size: 0.8rem; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-main); font-weight: 600; cursor: pointer;" title="選擇朗讀語音 (預設微軟真人語音)">
+            <option value="nanami">🌸 微軟 Nanami (女聲)</option>
+            <option value="keita">👦 微軟 Keita (男聲)</option>
+            <option value="google-hd">☁️ Google 真人 (HD)</option>
+            <option value="system">🌐 系統預設</option>
+          </select>
           <button id="modalTtsBtn" class="btn btn-action" title="以正常語速朗讀">🔊 1.0x 朗讀</button>
           <button id="modalSlowTtsBtn" class="btn btn-action" title="以 0.8x 慢速精聽朗讀">🐢 0.8x 慢速</button>
           <button id="modalBookmarkBtn" class="btn btn-action">⭐ 收藏</button>
@@ -2366,33 +2400,186 @@
       return "badge-level-biz";
     }
 
+    // ==========================================================================
+    // 語音朗讀核心引擎 (TTS Voice Engine - 優先選用微軟真人語音 Nanami / Keita)
+    // ==========================================================================
+    let availableVoices = [];
+    let currentAudioObj = null;
+
+    function initVoiceEngine() {
+      if ('speechSynthesis' in window) {
+        availableVoices = window.speechSynthesis.getVoices() || [];
+        window.speechSynthesis.onvoiceschanged = () => {
+          availableVoices = window.speechSynthesis.getVoices() || [];
+        };
+      }
+    }
+    initVoiceEngine();
+
+    function getSelectedVoiceChoice() {
+      return localStorage.getItem('jp_tts_voice') || 'nanami';
+    }
+
+    function setVoiceChoice(choice) {
+      localStorage.setItem('jp_tts_voice', choice);
+      const sel1 = document.getElementById('voiceSelect');
+      if (sel1 && sel1.value !== choice) sel1.value = choice;
+      const sel2 = document.getElementById('modalVoiceSelect');
+      if (sel2 && sel2.value !== choice) sel2.value = choice;
+
+      const titles = {
+        'nanami': '微軟 Nanami (七海・真人女聲)',
+        'keita': '微軟 Keita (圭太・真人男聲)',
+        'google-hd': 'Google 真人語音 (Cloud HD)',
+        'system': '系統預設語音'
+      };
+      showToast(`已切換發音引擎：${titles[choice] || choice}`);
+    }
+
+    function findBestVoice(choice) {
+      if (!availableVoices || availableVoices.length === 0) {
+        if ('speechSynthesis' in window) {
+          availableVoices = window.speechSynthesis.getVoices() || [];
+        }
+      }
+      if (!availableVoices || availableVoices.length === 0) return null;
+
+      const jaVoices = availableVoices.filter(v => 
+        (v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP') || v.lang.includes('ja_JP') || v.lang.includes('ja-JP')))
+      );
+
+      if (jaVoices.length === 0) {
+        const jaNamedVoices = availableVoices.filter(v => /Japanese|Japan|日本語/i.test(v.name));
+        if (jaNamedVoices.length > 0) jaVoices.push(...jaNamedVoices);
+      }
+
+      if (choice === 'nanami') {
+        // 優先順序 1: 微軟七海真人語音 (Microsoft Nanami Online Natural)
+        let v = jaVoices.find(v => /Nanami/i.test(v.name));
+        if (v) return v;
+
+        // 優先順序 2: 其他微軟自然/神經網路女性日語 (Natural / Online / Neural)
+        v = jaVoices.find(v => /Microsoft/i.test(v.name) && /Natural|Online|Neural/i.test(v.name) && !/Keita|Naoki|Daichi|Ichiro/i.test(v.name));
+        if (v) return v;
+
+        // 優先順序 3: 任何微軟日語真人語音 (排除舊版 Desktop 機器音)
+        v = jaVoices.find(v => /Microsoft/i.test(v.name) && !/Desktop/i.test(v.name));
+        if (v) return v;
+
+        // 優先順序 4: 任何微軟語音
+        v = jaVoices.find(v => /Microsoft/i.test(v.name));
+        if (v) return v;
+
+        // 優先順序 5: 任何自然語音 (如 Google 日本語)
+        v = jaVoices.find(v => /Natural|Online|Neural|Google/i.test(v.name));
+        if (v) return v;
+
+        return jaVoices[0] || null;
+      }
+
+      if (choice === 'keita') {
+        // 優先順序 1: 微軟圭太真人語音 (Microsoft Keita Online Natural)
+        let v = jaVoices.find(v => /Keita/i.test(v.name));
+        if (v) return v;
+
+        // 優先順序 2: 其他微軟自然/神經網路男性日語 (Naoki, Daichi, Ichiro)
+        v = jaVoices.find(v => /Microsoft/i.test(v.name) && /Naoki|Daichi|Ichiro/i.test(v.name));
+        if (v) return v;
+
+        // 優先順序 3: 任何微軟日語語音
+        v = jaVoices.find(v => /Microsoft/i.test(v.name));
+        if (v) return v;
+
+        return jaVoices[0] || null;
+      }
+
+      if (choice === 'system') {
+        return jaVoices[0] || null;
+      }
+
+      return jaVoices[0] || null;
+    }
+
     // Speech Synthesis with Clean Japanese Text (strips ruby/rt cleanly)
     function cleanJapaneseTextForSpeech(htmlOrRuby) {
       if (!htmlOrRuby) return "";
       const temp = document.createElement("div");
       temp.innerHTML = htmlOrRuby;
       temp.querySelectorAll("rt").forEach(el => el.remove());
-      return temp.textContent.replace(/\\s+/g, ' ').trim();
+      return temp.textContent.replace(/\s+/g, ' ').trim();
     }
 
-    function speakText(text) {
+    function speakText(text, rate = 0.9) {
+      const plain = cleanJapaneseTextForSpeech(text);
+      if (!plain) return;
+
+      // 停止先前正在發聲的朗讀或音檔
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      if (currentAudioObj) {
+        try {
+          currentAudioObj.pause();
+          currentAudioObj.currentTime = 0;
+        } catch (e) {}
+        currentAudioObj = null;
+      }
+
+      const voiceChoice = getSelectedVoiceChoice();
+
+      // 方案 1: 若使用者指定 Google 真人高音質 (Cloud HD)
+      if (voiceChoice === 'google-hd') {
+        playGoogleCloudTts(plain, rate);
+        return;
+      }
+
+      // 方案 2: Web Speech Synthesis（優先匹配微軟 Nanami / Keita 真人語音）
+      if ('speechSynthesis' in window) {
+        const matchedVoice = findBestVoice(voiceChoice);
+        if (matchedVoice) {
+          const ut = new SpeechSynthesisUtterance(plain);
+          ut.voice = matchedVoice;
+          ut.lang = 'ja-JP';
+          ut.rate = typeof rate === 'number' ? rate : 0.9;
+
+          let friendlyName = matchedVoice.name
+            .replace(/Microsoft\s*/i, '微軟 ')
+            .replace(/\s*Online\s*\(Natural\)\s*-\s*Japanese\s*\(Japan\)/i, ' (自然真人)')
+            .replace(/\s*-\s*Japanese\s*\(Japan\)/i, '');
+
+          showToast(`🔊 正在以 ${friendlyName} 朗讀...`);
+          window.speechSynthesis.speak(ut);
+          return;
+        }
+      }
+
+      // 方案 3: 若瀏覽器無微軟語音且無可用語音，自動降級為 Google Cloud 真人發音
+      playGoogleCloudTts(plain, rate);
+    }
+
+    function playGoogleCloudTts(plain, rate = 0.9) {
+      try {
+        const audioUrl = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=ja&q=${encodeURIComponent(plain.slice(0, 200))}`;
+        const audio = new Audio(audioUrl);
+        currentAudioObj = audio;
+        audio.playbackRate = typeof rate === 'number' ? rate : 0.9;
+        showToast("🔊 正在以 Google 真人語音朗讀...");
+        audio.play().catch(() => {
+          fallbackSpeechSynthesis(plain, rate);
+        });
+      } catch (e) {
+        fallbackSpeechSynthesis(plain, rate);
+      }
+    }
+
+    function fallbackSpeechSynthesis(plain, rate = 0.9) {
       if (!('speechSynthesis' in window)) {
         showToast("您的瀏覽器不支援語音朗讀功能");
         return;
       }
-      window.speechSynthesis.cancel();
-      const plain = cleanJapaneseTextForSpeech(text);
-      if (!plain) return;
-
       const ut = new SpeechSynthesisUtterance(plain);
       ut.lang = 'ja-JP';
-      ut.rate = 0.88;
-
-      // Ensure voice is assigned if available
-      const voices = window.speechSynthesis.getVoices();
-      const jaVoice = voices.find(v => v.lang.includes("ja") || v.lang.includes("JP"));
-      if (jaVoice) ut.voice = jaVoice;
-
+      ut.rate = typeof rate === 'number' ? rate : 0.9;
       window.speechSynthesis.speak(ut);
       showToast("🔊 正在朗讀日語...");
     }
@@ -2746,6 +2933,20 @@
         }
       }
     });
+
+    // Voice Engine Dropdown Listeners
+    const initialVoice = getSelectedVoiceChoice();
+    const voiceSelectEl = document.getElementById("voiceSelect");
+    const modalVoiceSelectEl = document.getElementById("modalVoiceSelect");
+
+    if (voiceSelectEl) {
+      voiceSelectEl.value = initialVoice;
+      voiceSelectEl.addEventListener("change", (e) => setVoiceChoice(e.target.value));
+    }
+    if (modalVoiceSelectEl) {
+      modalVoiceSelectEl.value = initialVoice;
+      modalVoiceSelectEl.addEventListener("change", (e) => setVoiceChoice(e.target.value));
+    }
 
     // Slow TTS vs Normal TTS
     document.getElementById("modalTtsBtn").addEventListener("click", () => {
