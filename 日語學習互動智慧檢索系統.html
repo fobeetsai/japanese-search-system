@@ -1251,7 +1251,7 @@
           <button id="openQuizBtn" class="btn btn-quiz" title="進入JLPT文型智慧測驗">🎯 隨堂測驗</button>
           <button id="toggleFuriganaBtn" class="btn btn-header" title="隱藏假名可供自我測驗">🔤 假名: 顯示中</button>
           <button id="toggleBookmarkOnlyBtn" class="btn btn-header" title="查看已收藏項目">⭐ 我的收藏 (<span id="bookmarkCount">0</span>)</button>
-          <span class="btn btn-header" style="cursor:default; background:rgba(56, 189, 248, 0.18); border-color:rgba(56, 189, 248, 0.4); color:#e0f2fe; font-weight:700;" title="固定指定微軟真人男聲 (けいた・Keita Online Natural)">👦 語音：微軟けいた</span>
+          <span id="voiceStatusBadge" class="btn btn-header" style="cursor:pointer; background:rgba(56, 189, 248, 0.18); border-color:rgba(56, 189, 248, 0.4); color:#e0f2fe; font-weight:700;" title="點擊檢視微軟真人男聲 (圭太/けいた) 狀態">👦 語音：微軟圭太 (檢測中...)</span>
           <div class="rate-slider-wrap" style="display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,0.12); padding:0.35rem 0.75rem; border-radius:0.5rem; border:1px solid rgba(255,255,255,0.2);" title="無段調整朗讀語速 (0.5x ~ 2.0x)">
             <span style="font-size:0.8rem; color:#cbd5e1; font-weight:600;">⚡ 語速</span>
             <input type="range" id="globalRateSlider" min="0.5" max="2.0" step="0.05" value="1.0" style="width:75px; accent-color:#38bdf8; cursor:pointer;">
@@ -2434,30 +2434,81 @@
       if (mLabel) mLabel.textContent = text;
     }
 
-    function findKeitaVoice() {
-      if (!availableVoices || availableVoices.length === 0) {
-        if ('speechSynthesis' in window) {
-          availableVoices = window.speechSynthesis.getVoices() || [];
+    let keitaVoiceCache = null;
+
+    function getKeitaVoiceAsync() {
+      return new Promise((resolve) => {
+        if (!('speechSynthesis' in window)) return resolve(null);
+        
+        function scan() {
+          const list = window.speechSynthesis.getVoices() || [];
+          // 支援各種系統語系名稱：圭太 (繁/簡中/日文)、けいた (平假名)、Keita (英文)
+          const k = list.find(v => /圭太|けいた|Keita/i.test(v.name));
+          if (k) return k;
+          return null;
         }
+
+        const found = scan();
+        if (found) {
+          keitaVoiceCache = found;
+          updateVoiceBadgeUI(true);
+          return resolve(found);
+        }
+
+        // 若初次載入語音清單尚未準備就緒，監聽 voiceschanged 事件
+        let resolved = false;
+        const onVoices = () => {
+          if (resolved) return;
+          const k = scan();
+          if (k) {
+            resolved = true;
+            keitaVoiceCache = k;
+            updateVoiceBadgeUI(true);
+            window.speechSynthesis.removeEventListener('voiceschanged', onVoices);
+            resolve(k);
+          }
+        };
+
+        window.speechSynthesis.addEventListener('voiceschanged', onVoices);
+
+        // 超時處理 (800ms 後若無微軟圭太)
+        setTimeout(() => {
+          if (!resolved) {
+            resolved = true;
+            window.speechSynthesis.removeEventListener('voiceschanged', onVoices);
+            const k = scan();
+            keitaVoiceCache = k || null;
+            updateVoiceBadgeUI(!!k);
+            resolve(k || null);
+          }
+        }, 800);
+      });
+    }
+
+    function updateVoiceBadgeUI(isKeitaReady) {
+      const badge = document.getElementById('voiceStatusBadge');
+      if (!badge) return;
+      if (isKeitaReady) {
+        badge.innerHTML = '👦 語音：微軟圭太 (真人自然音) <span style="display:inline-block; width:8px; height:8px; background:#22c55e; border-radius:50%; margin-left:4px; box-shadow:0 0 6px #22c55e;" title="微軟自然真人音已就緒"></span>';
+        badge.style.background = 'rgba(34, 197, 94, 0.16)';
+        badge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+        badge.style.color = '#dcfce7';
+        badge.onclick = () => showToast('✅ 目前已啟用微軟【圭太 (けいた)】自然真人語音，發音真實自然！');
+      } else {
+        badge.innerHTML = '⚠️ 語音：建議以 Edge 開啟 <span style="display:inline-block; width:8px; height:8px; background:#f59e0b; border-radius:50%; margin-left:4px; box-shadow:0 0 6px #f59e0b;" title="目前瀏覽器未支援微軟真人音"></span>';
+        badge.style.background = 'rgba(245, 158, 11, 0.16)';
+        badge.style.borderColor = 'rgba(245, 158, 11, 0.4)';
+        badge.style.color = '#fef3c7';
+        badge.onclick = () => alert('【微軟真人語音提示】\n\n您目前使用的瀏覽器（如 Chrome）不支援微軟 Online Natural 真人語音，因此瀏覽器只能發出機械合成音。\n\n💡 只要使用 Windows 內建的「Microsoft Edge」瀏覽器開啟本網頁，即可自動享有最頂級的微軟【圭太 (けいた)】自然真人發音！');
       }
-      if (!availableVoices || availableVoices.length === 0) return null;
+    }
 
-      // 1. 首選：微軟真人男聲 Keita (Microsoft Keita Online Natural)
-      let v = availableVoices.find(v => /Keita/i.test(v.name));
-      if (v) return v;
-
-      // 2. 次選：日語自然語音 (Natural / Online)
-      const jaVoices = availableVoices.filter(v => 
-        (v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP') || v.lang.includes('ja_JP') || v.lang.includes('ja-JP')))
-      );
-      v = jaVoices.find(v => /Keita/i.test(v.name));
-      if (v) return v;
-
-      v = jaVoices.find(v => /Natural|Online/i.test(v.name));
-      if (v) return v;
-
-      // 3. 備選日語語音
-      return jaVoices[0] || null;
+    // 初次載入即刻檢測語音引擎
+    if ('speechSynthesis' in window) {
+      getKeitaVoiceAsync();
+      window.speechSynthesis.onvoiceschanged = () => {
+        getKeitaVoiceAsync();
+      };
     }
 
     // Clean Japanese Text (strips ruby/rt cleanly)
@@ -2469,7 +2520,7 @@
       return temp.textContent.replace(/\s+/g, ' ').trim();
     }
 
-    function speakText(text, explicitRate) {
+    async function speakText(text, explicitRate) {
       const plain = cleanJapaneseTextForSpeech(text);
       if (!plain) return;
 
@@ -2481,17 +2532,25 @@
       window.speechSynthesis.cancel();
 
       const rate = typeof explicitRate === 'number' ? explicitRate : getGlobalRate();
-      const keitaVoice = findKeitaVoice();
+      const keitaVoice = await getKeitaVoiceAsync();
 
       const ut = new SpeechSynthesisUtterance(plain);
-      if (keitaVoice) {
-        ut.voice = keitaVoice;
-      }
       ut.lang = 'ja-JP';
       ut.rate = rate;
 
       const rateText = rate.toFixed(2).replace(/\.?0+$/, '') + 'x';
-      showToast(`🔊 正在以微軟真人【けいた】朗讀 (${rateText})...`);
+
+      if (keitaVoice) {
+        ut.voice = keitaVoice;
+        showToast(`🔊 正在以微軟真人【圭太】朗讀 (${rateText})...`);
+      } else {
+        const list = window.speechSynthesis.getVoices() || [];
+        const fallback = list.find(v => v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP')));
+        if (fallback) ut.voice = fallback;
+        const voiceName = fallback ? fallback.name.replace(/Microsoft\s*/i, '').replace(/\s*-\s*Japanese.*/i, '') : '預設合成音';
+        showToast(`⚠️ 目前使用 [${voiceName}] 機械音。請改用 Microsoft Edge 開啟即可獲得微軟【圭太】真人音！`);
+      }
+
       window.speechSynthesis.speak(ut);
     }
 

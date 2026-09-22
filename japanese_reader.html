@@ -6007,7 +6007,37 @@ body.highlight-ojad .word-token[data-ojad-type="な形"] {
             showToast('已匯出學習筆記！');
         }
 
-        function speakJapanese(text) {
+        async function getReaderKeitaVoiceAsync() {
+            if (!('speechSynthesis' in window)) return null;
+            const scan = () => {
+                const list = window.speechSynthesis.getVoices() || [];
+                return list.find(v => /圭太|けいた|Keita/i.test(v.name));
+            };
+            let found = scan();
+            if (found) return found;
+            return new Promise(resolve => {
+                let resolved = false;
+                const onVoices = () => {
+                    if (resolved) return;
+                    const k = scan();
+                    if (k) {
+                        resolved = true;
+                        window.speechSynthesis.removeEventListener('voiceschanged', onVoices);
+                        resolve(k);
+                    }
+                };
+                window.speechSynthesis.addEventListener('voiceschanged', onVoices);
+                setTimeout(() => {
+                    if (!resolved) {
+                        resolved = true;
+                        window.speechSynthesis.removeEventListener('voiceschanged', onVoices);
+                        resolve(scan() || null);
+                    }
+                }, 800);
+            });
+        }
+
+        async function speakJapanese(text) {
             if (!('speechSynthesis' in window)) {
                 showToast('您的瀏覽器不支援語音朗讀');
                 return;
@@ -6016,17 +6046,18 @@ body.highlight-ojad .word-token[data-ojad-type="な形"] {
             const u = new SpeechSynthesisUtterance(text);
             u.lang = 'ja-JP';
             u.rate = 0.95;
-            const voices = window.speechSynthesis.getVoices() || [];
             
-            // 專用微軟真人男聲【けいた / Keita】
-            let keitaVoice = voices.find(v => /Keita/i.test(v.name)) ||
-                             voices.find(v => (v.lang.startsWith('ja') || v.lang.includes('JP')) && /Natural|Online/i.test(v.name)) ||
-                             voices.find(v => v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP')));
-
+            // 專用微軟真人男聲【圭太 / けいた / Keita】
+            const keitaVoice = await getReaderKeitaVoiceAsync();
             if (keitaVoice) {
                 u.voice = keitaVoice;
+                showToast('🔊 正在以微軟真人【圭太】朗讀...');
+            } else {
+                const voices = window.speechSynthesis.getVoices() || [];
+                const fallback = voices.find(v => v.lang && (v.lang.startsWith('ja') || v.lang.includes('JP')));
+                if (fallback) u.voice = fallback;
+                showToast('⚠️ 建議以 Microsoft Edge 開啟享受微軟【圭太】真人音');
             }
-            showToast('🔊 正在以微軟真人【けいた】朗讀...');
             window.speechSynthesis.speak(u);
         }
 
